@@ -1,0 +1,133 @@
+---
+title: "Project1_NYPD"
+author: "CAPSA"
+date: "17/7/2022"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+```
+
+```{r get_dataset_data}
+library(tidyverse)
+library(tidyr)
+library(lubridate)
+url_in <- "https://data.cityofnewyork.us/api/views/833y-fsy8/rows.csv?"
+#updating name of original dataset file to "NYPD_Shooting_Incidents.csv" 
+file_names <- c("NYPD_Shooting_Incidents.csv")
+#just following the class in here with the covid example, I'm placing the link in a single vector
+urls <- str_c(url_in,file_names)
+```
+
+``` {r import_data, message =FALSE}
+library(tidyverse)
+library(tidyr)
+library(lubridate)
+#importing original dataset
+NYPD_dataset_original <- read_csv(urls[1])
+```
+
+```{r transform_analysis_data}
+library(tidyverse)
+library(tidyr)
+library(lubridate)
+#deleting columns related with jurisdiction code & coordinates
+NYPD_dataset_withoutColumns <-subset(NYPD_dataset_original,select=-c(JURISDICTION_CODE,X_COORD_CD, Y_COORD_CD, Latitude, Longitude, Lon_Lat))
+  
+  
+#changing format of columns as follows: "OCCUR_DATE" from <chr> to <date> ; from <char> to <factor> columns:BORO,PERP_AGE_GROUP ,PERP_SEX PERP_RACE, VIC_AGE_GROUP,VIC_SEX and VIC_RACE
+NYPD_dataset <-NYPD_dataset_withoutColumns%>%mutate(OCCUR_DATE =mdy(OCCUR_DATE))%>%
+  mutate(BORO =as.factor(BORO))%>%
+  mutate(PERP_AGE_GROUP =as.factor(PERP_AGE_GROUP))%>%
+  mutate(PERP_SEX =as.factor(PERP_SEX))%>%
+  mutate(PERP_RACE =as.factor(PERP_RACE))%>%
+  mutate(VIC_AGE_GROUP =as.factor(VIC_AGE_GROUP))%>%
+  mutate(VIC_SEX =as.factor(VIC_SEX))%>%
+  mutate(VIC_RACE =as.factor(VIC_RACE))%>%
+  #Transforming time format to hours to generate third plot below
+  mutate(OCCUR_TIME =hour(hms(as.character(OCCUR_TIME))))
+  
+  
+#remove from filter values "224", "940" & "1020" as do not correspond to an age value
+NYPD_dataset <-NYPD_dataset%>%filter(PERP_AGE_GROUP%in%c("<18","18-24","25-44","45-64","65+","UNKNOWN",NA))
+
+#showing summary of data after deleting columns not needed & converting data type as required
+summary(NYPD_dataset)
+
+
+#The first plot I'm going to do is to understand which borough of New York has the most number of incidents. Its result shows that Brooklyn is the number one in incidents.
+
+
+plot_first <-ggplot(NYPD_dataset,aes(x=BORO))+
+  geom_bar() +
+  labs(title= "New York City Boroughs",
+       x= "New York City Boroughs",
+       y= "Count of Incidents") +
+  theme_minimal()
+
+plot_first
+
+#The second plot I'm going to do is to have an idea of the incidents per victim's age group. Its result shows that the group of 24-44 is the number one in incidents.
+
+plot_second <-ggplot(NYPD_dataset,aes(x=VIC_AGE_GROUP))+
+  geom_bar() +
+  labs(title= "Incidents in New York City per Victim's Age Group",
+       x= "Victim's Age Group",
+       y= "Count of Incidents") +
+  theme_minimal()
+
+plot_second
+
+#I'll generate a third plot with only hour data to understand what time is more risky for citizens in NY. it result shows that the more dangerous hours to be on the streets is from 20:00 - 00:00
+
+NYPD_dataset_hour<-NYPD_dataset%>%
+  group_by(OCCUR_TIME)%>%
+  count()
+  
+  
+plot_third <-ggplot(NYPD_dataset_hour,aes(x=OCCUR_TIME,y=n))+
+  geom_line()+
+  labs(title= "Time Map of Incidents in New York City",
+       x= "Indicent Occurence Hour",
+       y= "Count of Incidents") +
+  theme_minimal()
+
+plot_third
+
+#Generate tables with Perp's vs Victim's race, sex and group age in order to perform some analysis
+
+
+table_race <-table(NYPD_dataset$PERP_RACE,NYPD_dataset$VIC_RACE)
+table_sex <- table(NYPD_dataset$PERP_SEX,NYPD_dataset$VIC_SEX)
+table_age<-table(NYPD_dataset$PERP_AGE_GROUP,NYPD_dataset$VIC_AGE_GROUP)
+
+table_race
+table_sex
+table_age
+
+```
+          
+``` {r model}
+glm.fit<-glm(NYPD_dataset$STATISTICAL_MURDER_FLAG ~ NYPD_dataset$PERP_RACE  + NYPD_dataset$PERP_SEX + NYPD_dataset$PERP_AGE_GROUP + NYPD_dataset$OCCUR_TIME)
+summary(glm.fit)
+
+
+```
+
+**Analysis, Conclusions & Bias**
+
+
+Based on the results, we can come to the conclusion that the top 3 dangerous boroughs in NY are Brooklyn, Bronx and Queens. In order to minimize the number of incidents, the advice is to stay at home from 20:00 to 00:00 as this is the time frame that shows more incident numbers.
+
+As we can see in the second plot and also using the information from the tables, the highest numbers of incidents come from the group of 25-44, more related with Male than with Female and with white hispanic and black races.
+
+In regards of the model, I found in some literature and web pages that a logistic regression could be used to predict qualitative responses and because we have some qualitative fields like STATISTICAL_MURDER_FLAG I considered it could work.  The idea is to relate a murder case with specific groups and incident time.
+
+The bias I have from what I read on the news and media is that the Bronx is the top one of the most dangerous boroughs in NYC and would think that women would be more affected than men. 
+
+Now that I did this data driven analysis, I would like to compare it with the news from today trying to minimize or delete at all the bias I had related with specific groups or populations.
+
